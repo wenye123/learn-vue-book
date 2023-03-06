@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>非原始值的响应式方案</title>
+  </head>
+  <body>
+
+<script type="text/javascript">
+try {
+  1.理解Proxy和Relect
+    1. Proxy能拦截一个对象的基本操作 如对象访问属性 函数调用。非基本操作如obj.fn();
+    2. Reflect相比较target[key]=value的手动写法 支持第三个参数receiver传递this(proxy本身实例)
+  2.js对象和Proxy的工作原理
+    1. 对象分为常规对象和异质对象，区别在于内部方法
+      1. 内部方法符合`ECMA10.1.8`节的就是常规对象 否则是异质对象，如Proxy和数组就是异质对象
+      2. 内部方法具有多态性，即普通对象内部的[[Get]]和Proxy中的[[Get]]实现逻辑不同
+        1. 如果proxy对象没有部署get方法 就是调用原始对象的[[Get]]
+        2. 所以proxy指定的拦截函数其实就是自定义代理对象本身(注意不是原始对象)的内部方法
+    2. 区分普通对象和函数区别在于内部方法是否有[[Call]]
+    3. 内部方法13个
+      -- 增删查 --
+      get(target, propKey, receiver) 拦截对象属性的读取 返回属性值
+      set(target, propKey, value, receiver) 拦截对象属性的设置 返回布尔值
+      deleteProperty(target, propKey) 拦截delete proxy[key]的操作 返回布尔值
+      -- 获取属性&属性是否存在 --
+      has(target, propKey) 拦截key in proxy的操作 返回布尔值
+      ownKeys(target) 拦截Object.getOwnPropertyNames(proxy)、Object.getOwnPropertySymbols(proxy)、Object.keys(proxy)、for...in循环，返回一个属性数组
+        注意: 该方法返回目标对象所有自身属性的属性名 但Object.keys()返回的仅目标对象可遍历属性
+      -- 获取&定义属性描述符--
+      getOwnPropertyDescriptor(target, propKey) 拦截Object.getOwnPropertyDescriptor(proxy, propKey) 返回属性的描述对象
+      defineProperty(target, propKey, propDesc) 拦截Object.defineProperty(proxy, propKey, propDesc）、Object.defineProperties(proxy, propDescs)，返回一个布尔值
+      --是否阻止&阻止对象扩展 --
+      preventExtensions(target) 拦截Object.preventExtensions(proxy) 返回布尔值
+      isExtensible(target) 拦截Object.isExtensible(proxy)，返回一个布尔值
+      -- 获取&设置原型 --
+      getPrototypeOf(target) 拦截Object.getPrototypeOf(proxy)，返回一个对象
+      setPrototypeOf(target, proto) 拦截Object.setPrototypeOf(proxy, proto)，返回一个布尔值
+      -- 函数特有内部方法 --
+      apply(target, thisArg, args) 拦截函数调用操作，如proxy(...args)、proxy.call(object, ...args)、proxy.apply(...)
+      construct(target, args, newTarget) 拦截实例化操作，返回一个对象，如new proxy(...args)。newTarget表示p
+  3.如何代理Object
+    1. 除了get收集依赖，xx in obj和for (let i in obj) 也都需要收集依赖
+      1. xx in obj收集依赖方式(改和删值才触发，同get)
+        通过has内部方法
+      2. for(let i in obj)收集依赖方式(增和删值才触发，改值不需要)
+        通过ownKeys内部方法: 因为获取不到指定的key，所以通过symbol()指定一个唯一的key，然后在修改中触发
+        注意: 修改值是不需要触发的
+    2. 除了set触发依赖 delete obj[xxx]也需要触发依赖
+      1. delete obj[xxx]触发依赖方式
+        通过deleteProperty内部方法
+  4.合理地触发响应
+    1. set操作如果值相同不应该更新，需要注意的是NaN === NaN，因此需要特殊处理
+      判断不是NaN方法: a === b
+    2. 如果响应对象的原型也是响应对象，则两者都会收集依赖
+      给p判断_raw字段返回sourse 通过判断p._raw === source才收集依赖
+  5.浅响应和深响应
+    对象是否递归为响应对象
+  6.只读和浅只读
+    读时候不收集依赖 写时候触发警告
+    可用于props
+  7.代理数组
+    1. 修复一个之前章节留下的问题 深响应和深只读 每次访问对象都会重新包装一次 导致前后两次访问的值不相同
+        通过创建一个map存储对象和响应对象 后续判断存在则用缓存的响应对象
+    2. 数组是异质对象 和普通对象的区别在于[[DefineOwnProperty]]内部方法的不同([[set]]依赖[[DefineOwnProperty]])
+    3. 读取操作
+      - 索引访问: arr[0] ---- 同普通对象
+      - in操作 0 in arr ---- 同普通对象
+      1. 数组长度: arr.length
+        也是arr的一种属性 访问就会收集依赖
+      2 for in 遍历
+        普通对象是新增和删除触发 但是数组修改length的值也应该触发 刚好新增和删除也会影响length 干脆三者一体
+        在ownKey中通过length属性收集依赖
+      3. for of, map some every forEach find includes findIndex join 等迭代方法
+        1. 内部就会访问到length和属性值 因此自己就会收集依赖 不用添加任何代码
+        2. 为了性能考虑 不应该对symbol类型进行依赖收集 如Symbol.iterator
+        3. 查找类方法查找对象元素时候因为对象元素变成响应对象 因此找不到。如includes find findIndex indexOf lastIndexOf filter
+          重写查找方法 先从proxy中查找 找不到再从source中查找
+    4. 写入操作
+      - 索引修改: arr[0]=xx ---- 同普通对象
+      - 删除: delete arr[0] ---- 同普通对象
+      1. 修改数组长度: arr.length = xx
+        1. 设置索引超过当前数组长度则会导致length属性更新 因此这种情况需要触发length依赖
+        2. 设置length的值导致索引>=length的元素被删除 需要触发元素依赖
+      2. 原型方法: pop push fill sort splice shift unshift reverse等
+        方法内部会读取或者设置length属性 设置length是对的可以触发依赖 但是读取是错误的会导致调用方法本身的副作用函数被收集，甚者造成栈溢出
+        解决方法是重写方法 调用方法时候不触发依赖收集          
+  8.代理Set和Map
+    1. 修复前面章节留下问题 _raw访问应该改成Symbol的方式
+    2. 关于迭代器的介绍
+      1. for of循环 就是一步步执行对象的[Symbol.iterator]()返回的可迭代对象(包含next方法)
+        {}: 没有部署所以不能直接for of访问 可用Object.entries(obj) Object.keys(obj) Object.values(obj)代替
+        []: Symbol.iterator === arr.values
+        set: Symbol.iterator === arr.values && Symbol.iterator === arr.keys
+        map: Symbol.iterator === arr.entries
+      3. xxx.entries() 返回的是对象 这个对象得有 Symbol.iterator方法再返回本身
+    3. 操作
+      1. 访问size属性和方法会报错
+        - size 因为内部的this需要原始对象而不是p 因此Reflect.get()的第三个参数应该为source
+        - 内部方法则是内部的this变成p 需要return source[key].bind(source)
+          因为增删改方法需要触发依赖 因此采用自定义方法覆盖实现
+      2. Set类型
+        // 读取
+        size: 返回元素的数量
+          - 不同于 arr.length size通过source改变 因此改变无法触发size收集的依赖 采用收集INTERATE_KEY的方式 在增删改方法中触发
+        has(value): 集合是否有值
+          - 类似对象的get 收集key依赖 在增删改中触发
+        // 增删改
+        add(value): 向集合添加值
+        delete(value): 向集合删除值
+        clear(): 清空集合
+        // 遍历
+        forEach(cb, thisArg): 遍历集合元素 
+          - 只需要收集INTERATE_KEY依赖(新增和删除) 且不同于arr 除非主动get/has 访问循环并不会导致子元素主动收集依赖 
+            - map下能访问到值 因此只触发INTERATE_KEY是不够的 更改操作也应该触发(不够精准 会造成浪费)
+          - 循环cb里面的参数需要手动响应化
+        // 获取迭代对象
+        entries(): 返回[value, value]的迭代器对象
+          - 先实现[Symbol.iterator]方法 此方法差别在于返回对象需要增加[Symbol.iterator]方法返回自身
+            - 收集ITERATE_KEY依赖
+          - 需要给参数进行响应化
+        keys(): 返回集合元素值的迭代器对象 等价于values()
+          - 注意在map.keys中收集MAP_KEY_ITERATE_KEY依赖 而不是INTERATE_KEY 因为INTERATE_KEY在set类型中也会触发 故新增一种类型
+        values(): 返回集合元素值的迭代器对象
+      3. Map类型(相比较set add改成set 多了个get())
+        // 读取
+        size: 返回键值对数量
+        get(key): 读取指定key的值
+        has(key): 是否存在key的键值对
+        // 增删改
+        set(key, val): 设置键值对
+        delete(key): 删除key的键值对
+        clear(): 清空map
+        // 遍历
+        forEach(cb, thisArg): 遍历集合元素 
+        // 获取迭代对象
+        entries(): 返回[key, value]的迭代器对象
+        keys(): 返回集合元素key的迭代器对象
+        values(): 返回集合元素值的迭代器对象
+    3. 数据污染: 响应式数据设置到原始对象
+      解决方法: 如果设置的值为响应式数据 则直接设置为原始数据value[RAW_KEY]
+  9.总结
+} catch {}
+</script>
+
+
+    <script type="text/javascript">
+      const js = [
+        "",
+        "1.理解Proxy和Relect.js",
+        "2.js对象和Proxy的工作原理.js",
+        "3.如何代理Object.js",
+        "4.合理地触发响应.js",
+        "5.浅响应和深响应.js",
+        "6.只读和浅只读.js",
+        "7.代理数组.js",
+        "8.代理Set和Map.js",
+        "9.总结.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === 'number' ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      // loadJS("../1.响应系统的作用与实现/8.计算属性computed与lazy.js").then(() => {
+      //   loadJS(1);
+      // })
+
+      loadJS(8);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+
+<!-- 
+  1. 命令式和声明式
+    vue内部实现命令式 暴露给用户则是声明式
+  2. 性能和可维护性的权衡
+    1. 声明式代码性能不优于命令式代码的性能
+  3. 虚拟DOM的性能到底如何
+    1. 新增
+      innerHTML创建页面性能 = html字符串拼接的计算量 + innerHTML的dom计算量
+      虚拟DOM性能 = 创建vnode计算量 + 创建真实DOM的计算量
+    2. 更新(模板越大 innerHTML性能越差)
+      innnerHTML更新性能 = 渲染html字符串 + 销毁旧DOM&创建新DOM
+      虚拟DOM更新性能 = 创建新DOM树&diff + 必要DOM更新
+    3. 性能对比
+      js > 虚拟DOM > innerHTML
+  4. 运行时和编译时
+  5. 总结
+ -->
+
+    <script type="text/javascript">
+      const obj = {
+        tag: "div",
+        children: [{ tag: "span", children: "hello" }],
+      };
+
+      function render(obj, root) {
+        const el = document.createElement(obj.tag);
+        if (typeof obj.children === "string") {
+          const text = document.createTextNode(obj.children);
+          el.appendChild(text);
+        } else {
+          // 数组则递归
+          obj.children.forEach((child) => render(child, el));
+        }
+
+        root.appendChild(el);
+      }
+
+      render(obj, document.body);
+    </script>
+  </body>
+</html>

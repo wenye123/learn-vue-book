@@ -1,0 +1,12 @@
+{
+  "name": "learn-vue-book",
+  "version": "1.0.0",
+  "description": "目录",
+  "main": "index.js",
+  "scripts": {
+    "push": "git add -A && git commit -m '$1' && git push"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

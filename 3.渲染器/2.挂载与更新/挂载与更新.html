@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>挂载与更新</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      try {
+        1. 挂载子节点和元素的属性
+        2. html属性和dom属性
+          1. html属性就是标签上写的那些 dom属性则是控制台打印dom出来的那些
+            - 很多html属性映射dom属性 比如id="xx"对应 el.id，没有属性没有没有映射如aria-*
+              - 一个html属性对应多个dom属性 如value="xx" 对应 el.value el.defaultValue
+              - html属性浏览器内部应该有做校验 填写非法值用dom属性却能访问到正确的值 如type="xxx" el.type="text"
+            - dom属性也不是都对应有html属性 如 el.textContent
+          2. html属性其实就是对应DOM属性的初始值
+        3. 正确地设置元素属性
+          1. 浏览器会自动将html属性转换成合适的dom属性 模板写法这一步得交给框架实现
+          2. 设置方法 优先设置dom属性
+            - dom属性直接设置(in操作判断dom属性是否存在)
+              - 属性值为空表示dom属性设置为true
+              - 有些属性是只读的 只能通过setAttribute设置 需要做特殊处理 如input的form属性
+            - el.setAttribute()设置
+        4. class的处理
+          1. vue中的class支持对，数组，对象数组等格式 需要格式化成string才能写入(缺点格式化需要性能)
+          2. 设置class三种方式 setAttribute className classList中className性能最好 因此做特殊处理
+        5. 卸载操作
+          1. 采用innerHTML=''卸载
+           1. 组件卸载无法调用生命周期
+           2. 元素卸载无法调用指令
+           3. 不能移除DOM上的事件
+          2. 在vnode上挂载真实DOM 卸载时候通过原生方法卸载
+        6. 区分vnode的类型
+          1. patch时候需要先判断新老节点类型 不相同则先卸载老节点再挂载新节点
+            - 挂载新节点需要判断类型(dom元素 组件等)来进行不同的操作
+        7. 事件的处理
+          1. 为了避免更新事件需要频繁解绑重绑事件 可以定义一个伪事件处理函数invoker 函数的value属性为真实的事件函数 更新时候只需要更新 invoker.value即可
+          2. invoker.value可以是一个数组
+        8. 事件冒泡与更新时机问题
+          1. 组件更新触发元素绑定事件会导致 之前本没有绑定的事件 在更新完后执行冒泡而触发
+        9. 更新子节点
+          1. 更新属性
+            - 遍历新属性 如果新属性值和老属性值不相同 则更新
+            - 遍历旧属性 如果属性在新属性中不存在则删除
+          2. 更新子节点
+            1. 新节点是文本 老节点是节点数组则先循环卸载 老节点不存在或者文本节点都进行设置文本操作 
+            2. 新节点是节点数组 老节点也是节点数组则diff算法 老节点是文本或不存在则先清空文本 在循环挂载
+            3. 新节点不存在 老节点是节点数组则先循环卸载 是文本节点则清空 不存在则啥也不做
+        10. 文本节点和注释节点
+        11. fragment
+          1. 空白节点 用来包裹一组元素
+          2. 挂载时候直接挂载children 卸载时候也直接卸载children
+        12. 总结
+      } catch {}
+    </script>
+
+    <script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+    <script type="text/javascript">
+      const js = [
+        "",
+        "1.挂载子节点和元素的属性.js",
+        "2.html属性和dom属性.js",
+        "3.正确地设置元素属性.js",
+        "4.class的处理.js",
+        "5.卸载操作.js",
+        "6.区分vnode的类型.js",
+        "7.事件的处理.js",
+        "8.事件冒泡与更新时机问题.js",
+        "9.更新子节点.js",
+        "10.文本节点和注释节点.js",
+        "11.fragment.js",
+        "12.总结.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(11);
+    </script>
+  </body>
+</html>

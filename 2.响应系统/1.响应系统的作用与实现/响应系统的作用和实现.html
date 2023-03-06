@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>响应系统的作用和实现</title>
+  </head>
+  <body>
+    <!-- 
+  1. 响应式数据和副作用函数
+  2. 响应式数据的基本实现
+  3. 设计一个完善的响应系统
+  4. 分支切换与cleanup
+    在副作用函数中每个键都会收集依赖 但是因为分支原因某些键的依赖没必要存在 需要去除 解决办法就是在每次执行副作用函数时候进行一次依赖清除
+      () => {obj.ok ? obj.text : "not"}
+      当ok为true时候 ok和text都会收集依赖 此时修改text的值也会触发更新
+      当OK为false时候 值永远为not 此时text就应该去除依赖 不然text的修改也会触发更新
+  5. 嵌套的effect与effect栈
+    1. 组件的渲染就是不断嵌套的effect
+    2. 嵌套的effect会覆盖掉activeEffect的值 因此需要定义一个栈来进行调节 
+    3. effect栈还能解决activeEffect执行完重置值为undefined的问题
+  6. 避免无限递归循环
+    假设副作用函数有读取和赋值的操作如 obj.age++ ，则会导致副作用函数执行中再次触发执行 导致无限递归循环
+    解决办法就是在trigger中判断触发的副作用函数是否等于当前执行的副作用函数 是则不触发执行
+  7. 调度执行
+    1. 可调度: 当trigger动作触发副作用函数重新执行，有能力决定副作用函数执行的时机，次数和方式
+  8. 计算属性computed与lazy
+    lazy表示是否手动执行
+  9. watch的实现原理
+    通过scheduler和lazy实现
+  10. 立即执行的watch与回调执行时机
+    immediate和flush参数
+  11. 过期的副作用
+    假设watch重复触发 前一次的effect应该过期(异步情况下可能出现问题)
+    提供onInvalidate参数 手动执行过期参数 (原理就是执行新watch回调前调用的一个函数 用于清除之前watch回调的影响)
+  12. 总结
+ -->
+
+    <script type="text/javascript">
+      const js = [
+        "",
+        "",
+        "2.响应式数据的基本实现.js",
+        "3.设计一个完善的响应系统.js",
+        "4.分支切换与cleanup.js",
+        "5.嵌套的effect与effect栈.js",
+        "6.避免无限递归循环.js",
+        "7.调度执行.js",
+        "8.计算属性computed与lazy.js",
+        "9.watch的实现原理.js",
+        "10.立即执行的watch与回调执行时机.js",
+        "11.过期的副作用.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = `./${js[index]}`;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      // 单独加载
+      // loadJS(8);
+
+      // 依赖加载
+      loadJS(8).then(() => {
+        loadJS(11);
+      });
+    </script>
+  </body>
+</html>

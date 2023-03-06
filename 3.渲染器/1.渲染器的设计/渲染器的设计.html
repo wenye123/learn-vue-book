@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>渲染器的设计</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      try {
+        1.渲染器与响应系统的结合
+          - 将render函数包裹在effect中 就能起到变量修改触发重新渲染
+        2.渲染器的基本概念
+          - 将虚拟DOM渲染成指定平台上的真实元素 如浏览器则是真实DOM
+        3.自定义渲染器
+        4.总结
+      } catch {}
+    </script>
+
+    <script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+    <script type="text/javascript">
+      const js = [
+        "渲染器的设计.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(0);
+    </script>
+  </body>
+</html>

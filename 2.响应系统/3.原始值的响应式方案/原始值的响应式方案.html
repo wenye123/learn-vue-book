@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>原始值的响应式方案</title>
+  </head>
+  <body>
+    <script type="text/javascript">
+      try {
+        1.引入ref的概念
+          - 给原始值包一个value的对象wrapper 然后再响应化
+          - 为了区别ref对象和普通响应对象区别 给wrapper增加一个不可枚举的属性__v_isRef
+        2.响应丢失问题
+          - 响应对象解构后获得的数据会失去响应能力
+          - 将第一层属性值改造成 {get value () {return obj[key]}}的方式
+        3.自动脱ref
+          - 通过__v_isRef判断是ref对象则直接返回 value.value
+          - vue中setup函数返回值 reactive都会自动脱ref
+        4.总结
+      } catch {}
+    </script>
+
+    <script type="text/javascript">
+      const js = [
+        "原始值的响应式方案.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS("../2.非原始值的响应式方案/8.代理Set和Map.js").then(() => {
+        loadJS(0);
+      })
+    </script>
+  </body>
+</html>

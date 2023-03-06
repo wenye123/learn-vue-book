@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>vue3的设计思路</title>
+  </head>
+  <body>
+
+<!--
+  1. 声明式地描述UI
+    jsx描述(可编译成虚拟DOM)
+    虚拟DOM描述
+  2. 初识渲染器
+    渲染器就是将虚拟DOM转换成真实的DOM
+  3. 组件的本质
+    组件就是一组DOM元素的封装，因此可以定义一个函数来代表组件，返回值就是虚拟DOM。函数名可以作为vnode中tag的值
+  4. 模板的工作原理
+    将模板通过编译器变成虚拟DOM，再通过渲染器将虚拟DOM变成真实DOM
+  5. vue是各个模块组成的有机整体
+    在编译阶段可以对那些内容会动态更改进行标记，再交给渲染器，方便渲染器寻找变更点
+  6. 总结
+ -->
+
+    <script type="text/javascript">
+      // 虚拟DOM
+      const vnode = {
+        tag: "span",
+        props: {
+          onClick: () => alert("hello"),
+        },
+        children: "click me", // children的值可以是一个字符串 也可以是一个数组
+      };
+
+      // 虚拟DOM-组件
+      function MyComponent() {
+        return {
+          tag: "div",
+          children: ["组件 ", vnode],
+        };
+      }
+      const componentVnode = {
+        tag: MyComponent,
+      };
+
+      // 挂载元素
+      function mountedElement(vnode, container) {
+        const el = document.createElement(vnode.tag);
+
+        // 添加属性
+        for (let key in vnode.props) {
+          // 添加事件
+          if (/^on/.test(key)) {
+            el.addEventListener(key.substr(2).toLowerCase(), vnode.props[key]);
+          }
+        }
+
+        // 处理children
+        if (typeof vnode.children === "string") {
+          const text = document.createTextNode(vnode.children);
+          el.appendChild(text);
+        } else if (Array.isArray(vnode.children)) {
+          // 数组则递归
+          vnode.children.forEach((child) => {
+            if (typeof child ==='string') {
+              const text = document.createTextNode(child);
+              el.appendChild(text);
+            } else if (typeof child === 'object') {
+              render(child, el)
+            }
+          });
+        }
+
+        container.appendChild(el);
+      }
+
+      // 挂载组件
+      function mountedComponent(vnode, container) {
+        // 调用函数获取虚拟DOM
+        const subtree = vnode.tag();
+        // 递归渲染
+        render(subtree, container);
+      }
+
+      // 渲染函数
+      function render(vnode, container) {
+        if (typeof vnode.tag === "string") {
+          mountedElement(vnode, container);
+        } else if (typeof vnode.tag === "function") {
+          mountedComponent(vnode, container);
+        }
+      }
+
+      render(componentVnode, document.body);
+    </script>
+  </body>
+</html>
