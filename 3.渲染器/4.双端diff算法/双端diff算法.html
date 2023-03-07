@@ -9,17 +9,15 @@
 
     <script type="text/javascript">
       try {
-        1. 减少DOM操作的性能开销
-          - 之前做法是先卸载老节点 再挂载新节点 次数是m+n 
-          - 最新做法: 找出新旧节点长度最小值 先更新这个这部分 然后如果新节点长度比较长 则挂载剩余节点 否则卸载剩余节点 次数为 Math.max(m, n)
-        2. DOM复用和key的作用
-          - 遍历新节点在老节点中找到key相等的 进行更新操作
-        3. 找到需要移动的元素
-          - 定义一个变量存储当前新节点在老节点中的最大索引 如果接下来的节点索引大于这个值 则相安无事 否则就需要将老节点对应的dom移动到 新节点数组中前一个节点dom的后面
-        4. 如何移动元素
-        5. 添加新元素
-        6. 移除不存在的元素
-        7. 总结
+        1.双端比较的原理
+          - 新旧头尾节点四个互相判断 如果能找到则直接更新 否则再通过for循环查找的方式
+          - 如果新节点剩下的就是新增 旧节点剩下的就是删除
+        2.双端比较的优势
+          - 相比较简单diff算法(两重for循环) 能减少移动次数
+        3.非理想状况的处理方式
+        4.添加新元素
+        5.移除不存在的元素
+        6.总结
       } catch {}
     </script>
 
@@ -27,10 +25,9 @@
     <script type="text/javascript">
       const js = [
         "",
-        "1.减少DOM操作的性能开销.js",
-        "2.通过key实现dom复用.js",
+        "1.双端diff算法.js",
       ];
-
+ 
       function loadJS(index) {
         return new Promise((resolve, reject) => {
           const path = typeof index === "number" ? `./${js[index]}` : index;
@@ -48,7 +45,7 @@
         });
       }
 
-      loadJS(2);
+      loadJS(1);
     </script>
   </body>
 </html>

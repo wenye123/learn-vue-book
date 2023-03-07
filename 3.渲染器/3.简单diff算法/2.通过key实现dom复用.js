@@ -2,7 +2,7 @@
 // 文本节点和元素节点的children都是字符串
 
 (() => {
-  const { effect, ref } = VueReactivity;
+  const { effect, reactive } = VueReactivity;
 
   const Text = Symbol();
   const Comment = Symbol();
@@ -33,7 +33,7 @@
     }
 
     // 挂载元素节点
-    function _mountElementNode(vnode, container) {
+    function _mountElementNode(vnode, container, anchor) {
       // 根据vnode创建DOM并赋值给el属性
       const el = (vnode.el = createElement(vnode.type));
 
@@ -56,7 +56,7 @@
       }
 
       // 插入容器
-      insertElement(el, container);
+      insertElement(el, container, anchor);
     }
 
     // 更新子节点
@@ -75,7 +75,56 @@
         // 新节点是节点数组
         // 旧节点也是节点数组则diff算法
         if (Array.isArray(oldNode.children)) {
-          // 
+          const oldChildren = oldNode.children;
+          const newChildren = newNode.children;
+
+          // 遍历新的子节点 在老节点中找到key相同的 进行更新
+          let currMaxOldIndex = 0;
+          for (let [i, nNode] of newChildren.entries()) {
+            let find = false; // 是否找到对应的节点
+            for (let [j, oNode] of oldChildren.entries()) {
+              if (nNode.key === oNode.key) {
+                // 标记找到对应节点
+                find = true;
+                // 找到节点则直接更新
+                patch(oNode, nNode, el);
+                // 如果对应最大老节点索引值大于当前老节点索引 说明需要移动位置
+                if (currMaxOldIndex > j) {
+                  // 获取前一个节点并插入
+                  const prevNode = newChildren[i - 1];
+                  if (prevNode) {
+                    const anchor = prevNode.el.nextSibling;
+                    insertElement(oNode.el, el, anchor);
+                  }
+                } else {
+                  // 更新currMaxOldIndex值
+                  currMaxOldIndex = j;
+                }
+
+                // 找到节点后跳出当前循环
+                break;
+              }
+            }
+            // 没找到对应节点则新增
+            if (find === false) {
+              const prevNode = newChildren[i - 1];
+              let anchor = null;
+              if (!prevNode) {
+                anchor = el.firstChild;
+              } else {
+                anchor = prevNode.el.nextSibling;
+              }
+              patch(null, nNode, el, anchor);
+            }
+          }
+
+          // 最后遍历老节点 如果在新节点中不存在则删除老节点
+          for (let oNode of oldChildren) {
+            const vnode = newChildren.find((vnode) => vnode.key === oNode.key);
+            if (!vnode) {
+              _unmountNode(oNode);
+            }
+          }
         } else {
           // 旧节点是文本节点或不存在 则直接清空内容后 重新挂载节点
           setElementText(el, "");
@@ -123,7 +172,7 @@
 
     // 新增和更新都算patch oldNode不存在就是新增
     // oldNode: vnode | null; newNode: vnode
-    function patch(oldNode, newNode, container) {
+    function patch(oldNode, newNode, container, anchor) {
       // 老节点存在且类型都变了 直接卸载老节点重新挂载
       if (oldNode && oldNode.type !== newNode.type) {
         _unmountNode(oldNode);
@@ -135,7 +184,7 @@
         // 普通标签元素的挂载
         // 老节点不存在则是新增(挂载) 否则是更新
         if (!oldNode) {
-          _mountElementNode(newNode, container);
+          _mountElementNode(newNode, container, anchor);
         } else {
           // 更新操作
           _patchElementNode(oldNode, newNode);
@@ -286,43 +335,74 @@
     },
   });
 
-  const count = ref(0);
-  effect(() => {
-    const vnode = {
-      type: "div",
-      children: [
-        {
-          type: "p",
-          props: {
-            onClick() {
-              count.value++;
-            },
-          },
-          children: "增加",
-        },
-        {
-          type: "p",
-          props: {
-            onClick() {
-              if (count.value - 1 >= 0) {
-                count.value--;
-              }
-            },
-          },
-          children: "减少",
-        },
-        {
-          type: "ul",
-          children: "."
-            .repeat(count.value)
-            .split(".")
-            .map((v, i) => ({
-              type: "li",
-              children: i + "",
-            })),
-        },
-      ],
-    };
-    renderer.render(vnode, document.body);
+  // 使用队列控制执行次数
+  const jobQueue = new Set();
+  const p = Promise.resolve();
+  let isFlushing = false; // 是否正在刷新队列
+  function flushJob() {
+    if (isFlushing) return;
+    isFlushing = true;
+    p.then(() => {
+      jobQueue.forEach((job) => job());
+    }).finally(() => {
+      isFlushing = false;
+    });
+  }
+  const data = reactive({
+    list: [],
   });
+  let count = 0;
+  effect(
+    () => {
+      const vnode = {
+        type: "div",
+        children: [
+          {
+            type: "p",
+            key: "add",
+            props: {
+              onClick() {
+                data.list.push("item" + count++);
+              },
+            },
+            children: "增加: " + data.list.length,
+          },
+          {
+            type: "p",
+            key: "reduce",
+            props: {
+              onClick() {
+                if (data.list.length > 0) {
+                  data.list.length = data.list.length - 1;
+                }
+              },
+            },
+            children: "减少: " + data.list.length,
+          },
+          {
+            type: "ul",
+            children: data.list.map((v, i) => {
+              return {
+                type: "li",
+                key: i,
+                props: {
+                  onClick() {
+                    data.list.splice(i, 1);
+                  },
+                },
+                children: v,
+              };
+            }),
+          },
+        ],
+      };
+      renderer.render(vnode, document.body);
+    },
+    {
+      scheduler(fn) {
+        jobQueue.add(fn);
+        flushJob();
+      },
+    }
+  );
 })();
