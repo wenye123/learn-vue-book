@@ -60,7 +60,97 @@
     }
 
     // 更新带key子节点(双端diff算法)
-    function _patchKeyedChildren(oldNode, newNode, el) {}
+    function _patchKeyedChildren(oldNode, newNode, el) {
+      const oldChildren = oldNode.children;
+      const newChildren = newNode.children;
+      // 四个索引
+      let oldStartIndex = 0;
+      let oldEndIndex = oldChildren.length - 1;
+      let newStartIndex = 0;
+      let newEndIndex = newChildren.length - 1;
+      // 四个节点
+      let oldStartNode = oldChildren[oldStartIndex];
+      let oldEndNode = oldChildren[oldEndIndex];
+      let newStartNode = newChildren[newStartIndex];
+      let newEndNode = newChildren[newEndIndex];
+
+      // 更新&移动节点
+      // 只要新旧节点 有一条没更新完就继续更新
+      while (newEndIndex >= newStartIndex && oldEndIndex >= oldStartIndex) {
+        if (!oldStartNode) {
+          // 如果节点不存在(undefined)说明已经被处理 直接跳到下一个即可
+          oldStartNode = oldChildren[++oldStartIndex];
+        } else if (oldStartNode.key === newStartNode.key) {
+          // 老开始节点 = 新开始节点
+          // 都在头部 不需要移动 只需要更新下节点
+          patch(oldStartNode, newStartNode, el);
+          // 更新索引和节点
+          oldStartNode = oldChildren[++oldStartIndex];
+          newStartNode = newChildren[++newStartIndex];
+        } else if (oldEndNode.key === newEndNode.key) {
+          // 老结束节点  = 新结束节点
+          // 都在尾部 不需要移动 只需要更新下节点
+          patch(oldEndNode, newEndNode, el);
+          // 更新索引和节点
+          oldEndNode = oldChildren[--oldEndIndex];
+          newEndNode = newChildren[--newEndIndex];
+        } else if (oldStartNode.key === newEndNode.key) {
+          // 老开始节点 = 新结束节点
+          // 更新节点后将dom移动到当前旧节点尾结点的后面
+          patch(oldStartNode, newEndNode, el);
+          insertElement(oldStartNode.el, el, oldEndNode.el.nextSibling);
+          // 更新索引和节点
+          oldStartNode = oldChildren[++oldStartIndex];
+          newEndNode = newChildren[--newEndIndex];
+        } else if (oldEndNode.key === newStartNode.key) {
+          // 老结束节点 = 新开始节点
+          // 更新节点后 将dom移动到当前旧节点头节点的前面
+          patch(oldEndNode, newStartNode, el);
+          insertElement(oldEndNode.el, el, oldStartNode.el);
+          // 更新索引和节点
+          oldEndNode = oldChildren[--oldEndIndex];
+          newStartNode = newChildren[++newStartIndex];
+        } else {
+          // 都找不到 则遍历老节点查找首节点
+          const indexInOld = oldChildren.findIndex(
+            (vnode) => vnode.key === newStartNode.key
+          );
+          // 找得到则移动到头部 找不到则新增插入
+          if (indexInOld > -1) {
+            // 找到的节点
+            const oldMatchNode = oldChildren[indexInOld];
+            // 更新节点
+            patch(oldMatchNode, newStartNode, el);
+            // 插入到当前旧节点头部
+            insertElement(oldMatchNode.el, el, oldStartNode.el);
+            // 将当前旧节点位置设置为undefined
+            oldChildren[indexInOld] = undefined;
+            // 更新新节点开始索引和节点
+            newStartNode = newChildren[++newStartIndex];
+          } else {
+            // 新增插入到头部
+            patch(null, newStartNode, el, oldStartNode.el);
+            // 更新索引和节点
+            newStartNode = newChildren[++newStartIndex];
+          }
+        }
+      }
+
+      // 循环结束后 只剩下一条节点
+      // 新节点还有剩余则新增
+      // 老节点还有剩余则删除
+      if (oldStartIndex > oldEndIndex && newStartIndex <= newEndIndex) {
+        for (let i = newStartIndex; i < newChildren.length; i++) {
+          // 注意: 这句话自己写的 原书只写了oldStartNode.el不符合剩下的都是尾巴节点的情况
+          const anchor = oldStartNode ? oldStartNode.el : null;
+          patch(null, newChildren[i], el, anchor);
+        }
+      } else if (oldStartIndex <= oldEndIndex && newStartIndex > newEndIndex) {
+        for (let i = oldStartIndex; i < oldChildren.length; i++) {
+          _unmountNode(oldChildren[i]);
+        }
+      }
+    }
 
     // 更新子节点
     function _patchChildren(oldNode, newNode, el) {
@@ -335,21 +425,21 @@
               },
               children: "减少: " + data.list.length,
             },
-            // {
-            //   type: "ul",
-            //   children: data.list.map((v, i) => {
-            //     return {
-            //       type: "li",
-            //       key: i,
-            //       props: {
-            //         onClick() {
-            //           data.list.splice(i, 1);
-            //         },
-            //       },
-            //       children: v,
-            //     };
-            //   }),
-            // },
+            {
+              type: "ul",
+              children: data.list.map((v, i) => {
+                return {
+                  type: "li",
+                  key: i,
+                  props: {
+                    onClick() {
+                      data.list.splice(i, 1);
+                    },
+                  },
+                  children: v,
+                };
+              }),
+            },
           ],
         };
         renderer.render(vnode, document.body);
