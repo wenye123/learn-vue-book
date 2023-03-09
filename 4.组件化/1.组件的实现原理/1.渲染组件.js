@@ -2,7 +2,7 @@
 // 文本节点和元素节点的children都是字符串
 
 (() => {
-  const { effect, reactive, ref } = VueReactivity;
+  const { effect, reactive, ref, shallowReactive } = VueReactivity;
 
   const Text = Symbol();
   const Comment = Symbol();
@@ -310,37 +310,180 @@
       _patchChildren(oldNode, newNode, el);
     }
 
+    // 解析props
+    function _resolveProps(propsOptions, vnodeProps) {
+      const props = {};
+      const attrs = {};
+      // 这里省略了props的各种校验
+      // 如果组件props选项定义过则是真正的props 否则按照attrs处理
+      for (let key in vnodeProps) {
+        if (key in propsOptions) {
+          props[key] = vnodeProps[key];
+        } else {
+          attrs[key] = vnodeProps[key];
+        }
+      }
+      return [props, attrs];
+    }
+
     // 挂载组件
     function _mountComponent(vnode, container, anchor) {
       // 获取组件选项
       const componentOptions = vnode.type;
       // 获取组件选项
-      const { render, data } = componentOptions;
+      const {
+        render,
+        data,
+        beforeCreated,
+        created,
+        beforeMount,
+        mounted,
+        beforeUpdate,
+        updated,
+        props: propsOptions,
+        methods,
+      } = componentOptions;
+
+      // beforeCreated事件
+      beforeCreated && beforeCreated();
 
       // 将data数据进行响应化
       const state = reactive(data());
+      // 获取props和attrs
+      const [props, attrs] = _resolveProps(propsOptions, vnode.props);
+      // 将props响应化(浅响应) 在更新组件时候 只要属性值发生改变就会触发组件更新
+      const reactiveProps = shallowReactive(props);
+
+      // 定义组件实例并挂载在vnode上
+      const componentIns = {
+        state,
+        props: reactiveProps,
+        attrs,
+        methods,
+        isMounted: false,
+        subTree: null,
+      };
+      vnode.component = componentIns;
+
+      // 不单单能通过this访问state还要能访问props等 因此需要搞个上下文对象代理访问state props computed methods啥的
+      const renderContext = new Proxy(componentIns, {
+        get(target, key, p) {
+          const { state, props, methods } = target;
+          // 先从state中查找 没有再从props中查找
+          if (state && key in state) {
+            return state[key];
+          } else if (key in props) {
+            return props[key];
+          } else if (methods && key in methods) {
+            // 注意: methods书中没有 自己实现
+            return methods[key].bind(renderContext);
+          } else {
+            console.error(`获取${key}不存在`);
+          }
+        },
+        set(target, key, value, p) {
+          const { state, props } = target;
+          // 先从state查找存在则设置 否则从props查找存在则报错 最后直接报错
+          if (state && key in state) {
+            state[key] = value;
+          } else if (key in props) {
+            console.warn(
+              `Attempting to mutate prop "${key}". Props are readonly.`
+            );
+          } else {
+            console.error(`设置${key}不存在`);
+          }
+        },
+      });
+
+      // created事件
+      created && created.call(renderContext);
 
       // 包裹effect实现组件自更新
+      // 因为会重复触发 因此需要判断是挂载还是更新
       const scheduler = createTickScheduler();
       effect(
         () => {
           // 获取虚拟DOM
-          const subtree = render.call(state, state);
-          // 挂载虚拟节点
-          patch(null, subtree, container, anchor);
+          const subTree = render.call(renderContext, renderContext);
+          // 设置根dom属性为attrs(自己实现)
+          subTree.props = subTree.props
+            ? { ...subTree.props, ...componentIns.attrs }
+            : { ...componentIns.attrs };
+          // 没挂载则挂载 否则更新
+          if (componentIns.isMounted === false) {
+            // beforeMount 事件
+            beforeMount && beforeMount.call(renderContext);
+            // 挂载虚拟节点
+            patch(null, subTree, container, anchor);
+            // 挂载完成后设置isMounted=true
+            componentIns.isMounted = true;
+            // mounted 事件
+            mounted && mounted.call(renderContext);
+          } else {
+            // beforeUpdate 事件
+            beforeUpdate && beforeUpdate.call(renderContext);
+            // 更新
+            patch(componentIns.subTree, subTree, container);
+            // updated 事件
+            updated && updated.call(renderContext);
+          }
+          // 挂载更新完设置子树
+          componentIns.subTree = subTree;
         },
         {
           scheduler,
         }
       );
+    }
 
-      setTimeout(() => {
-        state.count++;
-      }, 1000);
+    // 组件属性是否有变化
+    function _hasComponentPropsChange(oldProps, newProps) {
+      // 数量不相同则返回true
+      if (Object.keys(oldProps).length !== Object.keys(newProps)) return true;
+      // 遍历新属性 有一个和就属性不相同则返回true
+      for (let key in newProps) {
+        if (newProps[key] !== oldProps[key]) return true;
+      }
+      // 否则返回false
+      return false;
     }
 
     // 更新组件
-    function _patchComponent(oldNode, newNode) {}
+    function _patchComponent(oldNode, newNode) {
+      // 将旧节点的component属性赋值给新节点
+      const componentIns = (newNode.component = oldNode.component);
+
+      // 更新props和attrs
+      // 如果vnode的props改变才更新
+      const { props: oldProps, attrs: oldAttrs } = componentIns;
+      if (_hasComponentPropsChange(oldNode.props, newNode.props)) {
+        const [newProps, newAttrs] = _resolveProps(
+          newNode.type.props,
+          newNode.props
+        );
+        // 遍历新props更新内容 遍历老的props删除不在新值的属性
+        for (let key in newProps) {
+          oldProps[key] = newProps[key];
+        }
+        for (let key in oldProps) {
+          if (!key in newProps) {
+            delete oldProps[key];
+          }
+        }
+        // 更新attrs
+        for (let key in newAttrs) {
+          oldAttrs[key] = newAttrs[key];
+        }
+        for (let key in oldAttrs) {
+          if (!key in newAttrs) {
+            delete oldAttrs[key];
+          }
+        }
+      }
+
+      // 更新slots
+    }
 
     // 新增和更新都算patch oldNode不存在就是新增
     // oldNode: vnode | null; newNode: vnode
@@ -517,32 +660,94 @@
     });
 
     const scheduler = createTickScheduler();
-    effect(
-      () => {
-        const component = {
-          name: "test",
-          data() {
-            return {
-              count: 1,
-            };
-          },
-          render() {
-            return {
+    const component = {
+      name: "test",
+      beforeCreated() {
+        console.log("--beforeCreated--");
+      },
+      created() {
+        console.log("--created--", this.count);
+      },
+      beforeMount() {
+        console.log("--beforeMount--", this.count);
+      },
+      mounted() {
+        console.log("--mounted--", this.count);
+      },
+      beforeUpdate() {
+        console.log("--beforeUpdate--", this.count);
+      },
+      updated() {
+        console.log("--updated--", this.count);
+      },
+      props: {
+        label: String,
+      },
+      data() {
+        return {
+          count: 1,
+        };
+      },
+      methods: {
+        handleLabelClick() {
+          this.count += 2;
+        },
+      },
+      render() {
+        return {
+          type: "div",
+          key: "item",
+          children: [
+            {
+              type: "span",
+              key: "label",
+              props: {
+                onClick: this.handleLabelClick,
+              },
+              children: this.label + ": ",
+            },
+            {
               type: "button",
               key: "button",
+              // 注意: 这一行自己瞎写的 实际vue是否组件的vnode的方法编译成这样不得而知
               props: {
-                onClick() {
+                onClick: (() => {
                   this.count++;
-                },
+                }).bind(this),
               },
               children: this.count + "",
-            };
-          },
+            },
+          ],
         };
+      },
+    };
+    const label = ref("标题");
+    effect(
+      () => {
         const vnode = {
-          type: component,
-          key: "component",
-          children: "",
+          type: "div",
+          key: "parent",
+          children: [
+            {
+              type: "button",
+              key: "update",
+              props: {
+                onClick() {
+                  label.value = "标题" + Math.random();
+                },
+              },
+              children: "修改标题",
+            },
+            {
+              type: component,
+              key: "child",
+              props: {
+                class: "z-red",
+                label: label.value,
+              },
+              children: "",
+            },
+          ],
         };
 
         renderer.render(vnode, document.body);

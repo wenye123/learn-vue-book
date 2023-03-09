@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>组件的实现原理</title>
+    <style>
+      .z-red {
+        color: red;
+      }
+    </style>
   </head>
   <body>
 
@@ -11,9 +16,15 @@
     <script type="text/javascript">
       try {
         1. 渲染组件
+          - vnode.type的值就是组件选项
         2. 组件状态与自更新
+          - 通过reactive()将选项的data()响应化
+          - 通过effect()包裹子节点的渲染实现自更新(获取组件dom的render以及更新的patch())
         3. 组件实例与组件的生命周期
+          - 将组件实例挂载在vnode中方便下次使用 里面定义有组件虚拟dom state等字段
+          - 将选项中的生命周期方法再恰当的时机执行
         4. props与组件的被动更新
+          - 父组件更新引发子组件的更新叫做子组件的被动更新
         5. setup函数的作用与实现
         6. 组件事件与emit的实现
         7. 插槽的工作原理与实现
