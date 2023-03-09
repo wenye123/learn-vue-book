@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>组件的实现原理</title>
+  </head>
+  <body>
+
+
+    <script type="text/javascript">
+      try {
+        1. 渲染组件
+        2. 组件状态与自更新
+        3. 组件实例与组件的生命周期
+        4. props与组件的被动更新
+        5. setup函数的作用与实现
+        6. 组件事件与emit的实现
+        7. 插槽的工作原理与实现
+        8. 注册生命周期
+        9. 总结
+      } catch {}
+    </script>
+
+    <script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+    <script type="text/javascript">
+      const js = [
+        "",
+        "1.渲染组件.js",
+        "2.组件状态与自更新.js",
+        "3.组件实例与组件的生命周期.js",
+        "4.props与组件的被动更新.js",
+        "5.setup函数的作用与实现.js",
+        "6.组件事件与emit的实现.js",
+        "7.插槽的工作原理与实现.js",
+        "8.注册生命周期.js",
+        "9.总结.js",
+      ];
+ 
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(1);
+    </script>
+  </body>
+</html>
