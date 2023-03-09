@@ -59,99 +59,171 @@
       insertElement(el, container, anchor);
     }
 
-    // 更新带key子节点(双端diff算法)
-    function _patchKeyedChildren(oldNode, newNode, el) {
-      const oldChildren = [...oldNode.children];
-      const newChildren = [...newNode.children];
-      // 四个索引
-      let oldStartIndex = 0;
-      let oldEndIndex = oldChildren.length - 1;
-      let newStartIndex = 0;
-      let newEndIndex = newChildren.length - 1;
-      // 四个节点
-      let oldStartNode = oldChildren[oldStartIndex];
-      let oldEndNode = oldChildren[oldEndIndex];
-      let newStartNode = newChildren[newStartIndex];
-      let newEndNode = newChildren[newEndIndex];
-
-      // 更新&移动节点
-      // 只要新旧节点 有一条没更新完就继续更新
-      while (newEndIndex >= newStartIndex && oldEndIndex >= oldStartIndex) {
-        if (!oldStartNode) {
-          // 如果节点不存在(undefined)说明已经被处理 直接跳到下一个即可
-          oldStartNode = oldChildren[++oldStartIndex];
-        } else if (!oldEndNode) {
-          // 注意: 书中没这句话 老节点尾巴节点也可能是undefined
-          oldEndNode = oldChildren[--oldEndIndex];
-        } else if (oldStartNode.key === newStartNode.key) {
-          // 老开始节点 = 新开始节点
-          // 都在头部 不需要移动 只需要更新下节点
-          patch(oldStartNode, newStartNode, el);
-          // 更新索引和节点
-          oldStartNode = oldChildren[++oldStartIndex];
-          newStartNode = newChildren[++newStartIndex];
-        } else if (oldEndNode.key === newEndNode.key) {
-          // 老结束节点  = 新结束节点
-          // 都在尾部 不需要移动 只需要更新下节点
-          patch(oldEndNode, newEndNode, el);
-          // 更新索引和节点
-          oldEndNode = oldChildren[--oldEndIndex];
-          newEndNode = newChildren[--newEndIndex];
-        } else if (oldStartNode.key === newEndNode.key) {
-          // 老开始节点 = 新结束节点
-          // 更新节点后将dom移动到当前旧节点尾结点的后面
-          patch(oldStartNode, newEndNode, el);
-          insertElement(oldStartNode.el, el, oldEndNode.el.nextSibling);
-          // 更新索引和节点
-          oldStartNode = oldChildren[++oldStartIndex];
-          newEndNode = newChildren[--newEndIndex];
-        } else if (oldEndNode.key === newStartNode.key) {
-          // 老结束节点 = 新开始节点
-          // 更新节点后 将dom移动到当前旧节点头节点的前面
-          patch(oldEndNode, newStartNode, el);
-          insertElement(oldEndNode.el, el, oldStartNode.el);
-          // 更新索引和节点
-          oldEndNode = oldChildren[--oldEndIndex];
-          newStartNode = newChildren[++newStartIndex];
-        } else {
-          // 都找不到 则遍历老节点查找首节点
-          // 注意: 书中没有vnode&& 实际在循环过程中oldChildren的值会变成undefined的 因此需要判断
-          const indexInOld = oldChildren.findIndex(
-            (vnode) => vnode && vnode.key === newStartNode.key
-          );
-          // 找得到则移动到头部 找不到则新增插入
-          if (indexInOld > -1) {
-            // 找到的节点
-            const oldMatchNode = oldChildren[indexInOld];
-            // 更新节点
-            patch(oldMatchNode, newStartNode, el);
-            // 插入到当前旧节点头部
-            insertElement(oldMatchNode.el, el, oldStartNode.el);
-            // 将当前旧节点位置设置为undefined
-            oldChildren[indexInOld] = undefined;
-            // 更新新节点开始索引和节点
-            newStartNode = newChildren[++newStartIndex];
-          } else {
-            // 新增插入到头部
-            patch(null, newStartNode, el, oldStartNode.el);
-            // 更新索引和节点
-            newStartNode = newChildren[++newStartIndex];
+    // 自己实现: 获取最长递增子序列的索引
+    function _getLISIndex(nums) {
+      // 边界判断
+      if (nums.length === 0) return 0;
+      // 转移状态和初始条件
+      const dp = new Array(nums.length).fill(1); // 存储索引对应最长递增子序列的长度
+      const arr = new Array(nums.length).fill([]); // 存储索引对应最长递增子序列的索引数组
+      let maxDpIndex = 0; // 最大值的索引
+      // 遍历
+      for (let i = 0; i < nums.length; i++) {
+        arr[i] = nums[i] === -1 ? [] : [i]; // 初始化数组的值去掉-1
+        for (let j = 0; j < i; j++) {
+          // 这里需要过滤掉-1
+          if (nums[i] > nums[j] && nums[j] !== -1) {
+            if (dp[j] + 1 > dp[i]) {
+              dp[i] = dp[j] + 1;
+              arr[i] = [...arr[j], i];
+              if (dp[maxDpIndex] < dp[i]) {
+                maxDpIndex = i;
+              }
+            }
           }
         }
       }
+      return arr[maxDpIndex];
+    }
 
-      // 循环结束后 只剩下一条节点
-      // 新节点还有剩余则新增
-      // 老节点还有剩余则删除
-      if (oldStartIndex > oldEndIndex && newStartIndex <= newEndIndex) {
-        for (let i = newStartIndex; i <= newEndIndex; i++) {
-          // 注意: 这句话自己写的 原书只写了oldStartNode.el不符合剩下的都是尾巴节点的情况
-          const anchor = oldStartNode ? oldStartNode.el : null;
-          patch(null, newChildren[i], el, anchor);
+    // 更新带key子节点(快速diff算法)
+    function _patchKeyedChildren(oldNode, newNode, el) {
+      const oldChildren = oldNode.children;
+      const newChildren = newNode.children;
+
+      // 更新前置元素
+      // 前置索引和节点
+      let startIndex = 0;
+      let oldStatNode = oldChildren[startIndex];
+      let newStartNode = newChildren[startIndex];
+      // 更新前置元素
+      // 书中没判断oldStatNode是否存在 会报错
+      while (
+        oldStatNode &&
+        newStartNode &&
+        oldStatNode.key === newStartNode.key
+      ) {
+        patch(oldStatNode, newStartNode, el);
+        // 更新索引和节点
+        startIndex++;
+        oldStatNode = oldChildren[startIndex];
+        newStartNode = newChildren[startIndex];
+      }
+
+      // 更新后置元素
+      // 后置索引和节点
+      let oldEndIndex = oldChildren.length - 1;
+      let newEndIndex = newChildren.length - 1;
+      let oldEndNode = oldChildren[oldEndIndex];
+      let newEndNode = newChildren[newEndIndex];
+      // 书中没有oldEndIndex >= startIndex && newEndIndex >= startIndex会报错
+      while (
+        oldEndIndex >= startIndex &&
+        newEndIndex >= startIndex &&
+        oldEndNode.key === newEndNode.key
+      ) {
+        patch(oldEndNode, newEndNode, el);
+        // 更新索引和节点
+        oldEndIndex--;
+        newEndIndex--;
+        oldEndNode = oldChildren[oldEndIndex];
+        newEndNode = newChildren[newEndIndex];
+      }
+
+      // 老节点遍历完 新节点还有剩下则新增 锚点是最后一个节点
+      if (startIndex > oldEndIndex && startIndex <= newEndIndex) {
+        const anchorIndex = newEndIndex + 1; // 之前循环-- 这里+回来
+        const anchor = newChildren[anchorIndex]
+          ? newChildren[anchorIndex].el
+          : null;
+        // 新增
+        while (startIndex <= newEndIndex) {
+          patch(null, newChildren[startIndex], el, anchor);
+          startIndex++;
         }
-      } else if (oldStartIndex <= oldEndIndex && newStartIndex > newEndIndex) {
-        for (let i = oldStartIndex; i <= oldEndIndex; i++) {
-          _unmountNode(oldChildren[i]);
+      } else if (startIndex > newEndIndex && startIndex <= oldEndIndex) {
+        while (startIndex <= oldEndIndex) {
+          _unmountNode(oldChildren[startIndex]);
+          startIndex++;
+        }
+      } else {
+        // 处理完前置和后置元素 且只剩新增和只剩删除的特殊情况 剩下的节点需要进行对比移动
+        // 剩余新节点对应老节点索引的数组
+        const count = newEndIndex - startIndex + 1;
+        const oldIndexArr = new Array(count).fill(-1);
+
+        // 构建剩下新节点key:index映射表
+        const newNodeKeyIndexMap = {};
+        for (let i = startIndex; i <= newEndIndex; i++) {
+          newNodeKeyIndexMap[newChildren[i].key] = i;
+        }
+        // 遍历旧节点剩余节点 找得到则更新 顺带更新索引数组 找不到则卸载
+        // 定义moved和currMaxOldIndex来判断是否应该移除
+        // 定义updateCount来判断新节点更新完了 更新完则直接卸载剩余老节点(不定义也是可以的 反正找不到也会卸载)
+        let moved = false;
+        let currMaxOldNodeToNewNodeIndex = 0;
+        let updateCount = 0;
+
+        for (let i = startIndex; i <= oldEndIndex; i++) {
+          // 还没更新完才更新
+          if (updateCount <= count) {
+            const oldNode = oldChildren[i];
+            const newNodeIndex = newNodeKeyIndexMap[oldNode.key];
+            // 找到则更新节点&索引数组
+            if (newNodeIndex !== undefined) {
+              patch(oldNode, newChildren[newNodeIndex], el);
+              // 更新节点后数量+1
+              updateCount++;
+              // 注意: 这里索引需要减去开始节点索引
+              oldIndexArr[newNodeIndex - startIndex] = i;
+              // 记录是否需要移动
+              if (newNodeIndex < currMaxOldNodeToNewNodeIndex) {
+                moved = true;
+              } else {
+                currMaxOldNodeToNewNodeIndex = newNodeIndex;
+              }
+            } else {
+              // 没找到则卸载
+              _unmountNode(oldNode);
+            }
+          }
+        }
+
+        // 新节点在旧节点中不是有序的 需要移动
+        if (moved) {
+          // 获取最长递增子序列
+          const seq = _getLISIndex(oldIndexArr);
+
+          // 将旧节点最长递增子序列和剩下的新节点进行对比 如果相同则不移动 否则移动
+          let seqEndIndex = seq.length - 1;
+          let restNewNodeEndIndex = count - 1;
+          for (; restNewNodeEndIndex >= 0; restNewNodeEndIndex--) {
+            // 剩下新节点对应老节点索引值不存在则新增
+            if (oldIndexArr[restNewNodeEndIndex] === -1) {
+              // 获取需要插入的节点
+              const inserIndex = restNewNodeEndIndex + startIndex;
+              const inserNode = newChildren[inserIndex];
+              // 获取下一个锚定DOM
+              const anchor = newChildren[inserIndex + 1]
+                ? newChildren[inserIndex + 1].el
+                : null;
+              // 插入节点
+              patch(null, inserNode, el, anchor);
+            } else if (restNewNodeEndIndex === seq[seqEndIndex]) {
+              // 等同最长递增子序列则不需要移动 移动指针
+              seqEndIndex--;
+            } else {
+              // 需要移动
+              const moveIndex = restNewNodeEndIndex + startIndex;
+              const moveNode = newChildren[moveIndex];
+              // 获取下一个锚定DOM
+              const anchor = newChildren[moveIndex + 1]
+                ? newChildren[moveIndex + 1].el
+                : null;
+              // 移动节点
+              insertElement(moveNode.el, el, anchor);
+            }
+          }
         }
       }
     }

@@ -2,7 +2,7 @@
 // 文本节点和元素节点的children都是字符串
 
 (() => {
-  const { effect, reactive } = VueReactivity;
+  const { effect, reactive, ref } = VueReactivity;
 
   const Text = Symbol();
   const Comment = Symbol();
@@ -336,73 +336,113 @@
   });
 
   // 使用队列控制执行次数
-  const jobQueue = new Set();
-  const p = Promise.resolve();
-  let isFlushing = false; // 是否正在刷新队列
-  function flushJob() {
-    if (isFlushing) return;
-    isFlushing = true;
-    p.then(() => {
-      jobQueue.forEach((job) => job());
-    }).finally(() => {
-      isFlushing = false;
-    });
-  }
-  const data = reactive({
-    list: [],
-  });
-  let count = 0;
-  effect(
-    () => {
-      const vnode = {
-        type: "div",
-        children: [
-          {
-            type: "p",
-            key: "add",
-            props: {
-              onClick() {
-                data.list.push("item" + count++);
-              },
-            },
-            children: "增加: " + data.list.length,
-          },
-          {
-            type: "p",
-            key: "reduce",
-            props: {
-              onClick() {
-                if (data.list.length > 0) {
-                  data.list.length = data.list.length - 1;
-                }
-              },
-            },
-            children: "减少: " + data.list.length,
-          },
-          {
-            type: "ul",
-            children: data.list.map((v, i) => {
-              return {
-                type: "li",
-                key: i,
-                props: {
-                  onClick() {
-                    data.list.splice(i, 1);
-                  },
-                },
-                children: v,
-              };
-            }),
-          },
-        ],
-      };
-      renderer.render(vnode, document.body);
-    },
-    {
-      scheduler(fn) {
-        jobQueue.add(fn);
-        flushJob();
-      },
+    const jobQueue = new Set();
+    const p = Promise.resolve();
+    let isFlushing = false; // 是否正在刷新队列
+    function flushJob() {
+      if (isFlushing) return;
+      isFlushing = true;
+      p.then(() => {
+        jobQueue.forEach((job) => job());
+      }).finally(() => {
+        isFlushing = false;
+      });
     }
-  );
+    const data = reactive({
+      list: [],
+    });
+    let count = 0;
+    effect(
+      () => {
+        const vnode = {
+          type: "div",
+          children: [
+            {
+              type: "p",
+              key: "add",
+              props: {
+                onClick() {
+                  data.list.push("item" + count++);
+                },
+              },
+              children: "增加: " + data.list.length,
+            },
+            {
+              type: "p",
+              key: "reduce",
+              props: {
+                onClick() {
+                  if (data.list.length > 0) {
+                    data.list.length = data.list.length - 1;
+                  }
+                },
+              },
+              children: "减少: " + data.list.length,
+            },
+            {
+              type: "p",
+              key: "shuffle",
+              props: {
+                onClick() {
+                  data.list = data.list.sort((v) => Math.random() - 0.5);
+                },
+              },
+              children: "打乱: " + data.list.length,
+            },
+            {
+              type: "ul",
+              key: "ul",
+              children: data.list.map((v, i) => {
+                return {
+                  type: "li",
+                  key: v,
+                  props: {
+                    onClick() {
+                      data.list.splice(i, 1);
+                    },
+                  },
+                  children: v,
+                };
+              }),
+            },
+          ],
+        };
+        renderer.render(vnode, document.getElementById("app1"));
+      },
+      {
+        scheduler(fn) {
+          jobQueue.add(fn);
+          flushJob();
+        },
+      }
+    );
+    // 测试复杂情况
+    const map = {};
+    const flag = ref(true);
+    for (let i = 1; i <= 7; i++) {
+      map[i] = { type: "p", key: `p${i}`, children: `p${i}` };
+    }
+    const vnodes1 = [map[1], map[2], map[3], map[4], map[6], map[5]];
+    const vnodes2 = [map[1], map[3], map[4], map[2], map[7], map[5]];
+    effect(
+      () => {
+        const vnode = {
+          type: "div",
+          key: "fragment",
+          props: {
+            onClick() {
+              flag.value = !flag.value;
+            },
+          },
+          children: flag.value ? vnodes1 : vnodes2,
+        };
+        renderer.render(vnode, document.getElementById("app2"));
+      },
+      {
+        scheduler(fn) {
+          jobQueue.add(fn);
+          flushJob();
+        },
+      }
+    );
 })();
