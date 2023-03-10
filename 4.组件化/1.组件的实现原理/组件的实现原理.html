@@ -25,27 +25,24 @@
           - 将选项中的生命周期方法再恰当的时机执行
         4. props与组件的被动更新
           - 父组件更新引发子组件的更新叫做子组件的被动更新
+          - 将props和attrs挂载在组件实例中且设置为浅响应 这样下次更新时候只要修改这个值就能达到触发组件更新的目标
         5. setup函数的作用与实现
+          - setup是组合式的写法 和传统的选项式写法能共存但不建议
+            - setup函数第一个参数是只读的props 第二个是包含多种属性的上下文对象
+            - setup返回render函数则会去掉组件本身的render函数 返回对象则作为类似data的存在
         6. 组件事件与emit的实现
+          - emit就是在props中查找到对应的事件函数并执行
         7. 插槽的工作原理与实现
         8. 注册生命周期
         9. 总结
       } catch {}
     </script>
 
-    <script src="https://unpkg.com/@vue/reactivity@3.0.5/dist/reactivity.global.js"></script>
+    <script src="../../reactivity.global.js"></script>
     <script type="text/javascript">
       const js = [
         "",
-        "1.渲染组件.js",
-        "2.组件状态与自更新.js",
-        "3.组件实例与组件的生命周期.js",
-        "4.props与组件的被动更新.js",
-        "5.setup函数的作用与实现.js",
-        "6.组件事件与emit的实现.js",
-        "7.插槽的工作原理与实现.js",
-        "8.注册生命周期.js",
-        "9.总结.js",
+        "组件的实现原理.js",
       ];
  
       function loadJS(index) {
