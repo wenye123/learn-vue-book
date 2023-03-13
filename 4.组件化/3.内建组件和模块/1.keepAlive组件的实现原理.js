@@ -192,6 +192,57 @@
     };
   }
 
+  // keep-alive组件
+  const KeepAlive = {
+    __isKeepAlive: true, // keepAlive组件特有的标识
+    setup(props, { slots }) {
+      // 创建缓存对象{vnode.type: vnode}
+      const cache = new Map();
+      // 当前keepAlive的实例
+      const componentIns = currComponentIns;
+      // keepAlive的实例存在特殊的keepAliveCtx对象
+      const { move, createElement } = componentIns.keepAliveCtx;
+      // 创建隐藏容器
+      const storageContainer = createElement("div");
+      // 给实例增加 激活 和失活两个方法
+      // 失活 将节点先放在隐藏容器中
+      componentIns._deActivate = (vnode) => {
+        move(vnode, storageContainer);
+      };
+      // 激活 将节点从隐藏容器 移动回当前容器
+      componentIns._activate = (vnode, container, anchor) => {
+        move(vnode, container, anchor);
+      };
+
+      return () => {
+        // 获取keepAlive的组件
+        const rawVNode = slots.default();
+        // 不是组件节点则直接渲染
+        if (typeof rawVNode.type !== "object") {
+          return rawVNode;
+        }
+
+        // 获取缓存节点
+        const cacheVNode = cache.get(rawVNode.type);
+        // 存在缓存节点则标记keptAlive为true 在挂载时候判断有这个属性则不需要挂载 直接激活就行
+        if (cacheVNode) {
+          // 继承之前的component
+          rawVNode.component = cacheVNode.component;
+          rawVNode.keptAlive = true;
+        } else {
+          cache.set(rawVNode.type, rawVNode);
+        }
+
+        // 标记组件shouldKeepAlive属性 避免被卸载
+        rawVNode.shouldKeepAlive = true;
+        // 将keepAlive的实例也挂载到vnode上 以便在渲染器中访问
+        rawVNode.keepAliveComponentIns = componentIns;
+
+        return rawVNode;
+      };
+    },
+  };
+
   // 为了保持通用 特殊api通过参数传递
   function createRenderer(options) {
     const {
@@ -212,11 +263,16 @@
         typeof vnode.type === "object" ||
         typeof vnode.type === "function"
       ) {
-        // 组件卸载只需要subtree
-        _unmountNode(vnode.component.subTree);
-        // 调用卸载事件
-        vnode.component.unMounted &&
-          vnode.component.unMounted.forEach((fn) => fn());
+        if (vnode.shouldKeepAlive) {
+          // keepAlive组件只需要失活 不需要卸载
+          vnode.keepAliveComponentIns._deActivate(vnode);
+        } else {
+          // 组件卸载只需要subtree
+          _unmountNode(vnode.component.subTree);
+          // 调用卸载事件
+          vnode.component.unMounted &&
+            vnode.component.unMounted.forEach((fn) => fn());
+        }
       } else {
         const parent = vnode.el.parentNode;
         if (parent) {
@@ -551,7 +607,19 @@
         mounted: [], // 存储onMounted的数组
         unMounted: [], // 存储unMounted的数组
         subTree: null,
+        keepAliveCtx: null, // keepAlive组件实例才有这个属性
       };
+      // keepAlive组件才挂载
+      const isKeepAlive = vnode.type.__isKeepAlive;
+      if (isKeepAlive) {
+        componentIns.keepAliveCtx = {
+          createElement,
+          move(vnode, container, anchor) {
+            insertElement(vnode.component.subTree.el, container, anchor);
+          },
+        };
+      }
+
       vnode.component = componentIns;
 
       // setup返回的state 地位等同于data()
@@ -775,8 +843,13 @@
       } else if (typeof type === "object" || typeof type === "function") {
         // 组件类型的挂载
         if (!oldNode) {
-          // 挂载组件
-          _mountComponent(newNode, container, anchor);
+          if (newNode.keptAlive) {
+            // 如果组件已经keepAlive 只需要激活
+            newNode.keepAliveComponentIns._activate(newNode, container, anchor);
+          } else {
+            // 挂载组件
+            _mountComponent(newNode, container, anchor);
+          }
         } else {
           // 更新组件
           _patchComponent(oldNode, newNode, container);
@@ -905,32 +978,72 @@
     });
 
     const scheduler = createTickScheduler();
-    const funcComponent = (props) => {
-      return {
-        type: "div",
-        children: props.title + ": 函数组件",
-      };
+    const Component1 = {
+      name: "内部组件",
+      props: {
+        count: Number,
+      },
+      data() {
+        return {
+          content: "",
+        };
+      },
+      created() {
+        this.content = "接口返回的内容" + Math.floor(Math.random() * 200);
+      },
+      setup(props, setupContext) {
+        return function () {
+          return {
+            type: "div",
+            children: `${this.content} : ${props.count}`,
+          };
+        };
+      },
     };
-    funcComponent.props = {
-      title: String,
-    };
+    const Component2 = { ...Component1 };
+    const NoKeepAlive = {
+      setup(props, {slots}) {
+        return function () {
+          return slots.default()
+        }
+      }
+    }
     const count = ref(1);
     effect(
       () => {
         const vnode = {
           type: "div",
-          props: {
-            onClick() {
-              count.value++;
-            },
-          },
           children: [
             {
-              type: funcComponent,
-              key: count.value,
+              type: "button",
               props: {
-                title: "标题" + count.value,
-                class: "z-red",
+                onClick() {
+                  count.value++;
+                },
+              },
+              children: count.value + "",
+            },
+            {
+              type: KeepAlive,
+              props: {},
+              children: {
+                default() {
+                  return count.value % 2
+                    ? {
+                        type: Component1,
+                        key: "Component1",
+                        props: {
+                          count: count.value,
+                        },
+                      }
+                    : {
+                        type: Component2,
+                        key: "Component2",
+                        props: {
+                          count: count.value,
+                        },
+                      };
+                },
               },
             },
           ],
