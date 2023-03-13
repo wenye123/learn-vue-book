@@ -33,6 +33,8 @@
         6. 组件事件与emit的实现
           - emit就是在props中查找到对应的事件函数并执行
         7. 插槽的工作原理与实现
+          - 插槽可以看做是一种特殊的props 区别在于props本身进行浅响应 如果值改变就触发更新。插槽是直接在组件内渲染 父元素的state直接收集组件的render依赖 如果state更改则直接触发
+          - 组件的子元素渲染成{ default() {return vnodes} } 组件内部通过 this.$slots.defalut()直接渲染
         8. 注册生命周期
         9. 总结
       } catch {}
