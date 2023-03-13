@@ -208,7 +208,10 @@
       // 空白节点直接卸载children
       if (vnode.type === Fragment) {
         vnode.children.forEach((vnode) => _unmountNode(vnode));
-      } else if (typeof vnode.type === "object") {
+      } else if (
+        typeof vnode.type === "object" ||
+        typeof vnode.type === "function"
+      ) {
         // 组件卸载只需要subtree
         _unmountNode(vnode.component.subTree);
         // 调用卸载事件
@@ -500,8 +503,18 @@
 
     // 挂载组件
     function _mountComponent(vnode, container, anchor) {
-      // 获取组件选项
-      const componentOptions = vnode.type;
+      // 是否函数组件
+      const isFunctionalComponent = typeof vnode.type === "function";
+      // 组件函数转换成选项格式
+      if (isFunctionalComponent) {
+        componentOptions = {
+          render: vnode.type,
+          props: vnode.type.props,
+        };
+      } else {
+        let componentOptions = vnode.type;
+      }
+
       // 获取组件选项
       let {
         render,
@@ -632,7 +645,7 @@
       effect(
         () => {
           // 获取虚拟DOM
-          const subTree = render.call(renderContext);
+          const subTree = render.call(renderContext, renderContext);
           // 注意: 设置根dom属性为attrs(自己实现)
           subTree.props = subTree.props
             ? { ...subTree.props, ...componentIns.attrs }
@@ -759,7 +772,7 @@
         } else {
           _patchChildren(oldNode, newNode, container);
         }
-      } else if (typeof type === "object") {
+      } else if (typeof type === "object" || typeof type === "function") {
         // 组件类型的挂载
         if (!oldNode) {
           // 挂载组件
@@ -891,107 +904,38 @@
       },
     });
 
-    // 异步加载模块
-    // import("./com.js").then((res) => {
-    //   console.log(res.default);
-    // });
-
     const scheduler = createTickScheduler();
-    // 异步加载组件loader
-    let loadCount = 0;
-    const loader = () => {
-      // 延长500ms加载
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          if (loadCount % 7 === 0) {
-            resolve(import("./com.js").then((m) => m.default));
-          } else {
-            reject(new Error("加载失败"));
-          }
-          loadCount++;
-        }, 500);
-      });
+    const funcComponent = (props) => {
+      return {
+        type: "div",
+        children: props.title + ": 函数组件",
+      };
     };
-
-    let count = ref(1);
-    const component = defineAsyncComponent({
-      loader,
-      timeout: 10000,
-      errorComponent: {
-        name: "errorComponent",
-        props: {
-          error: Object,
-        },
-        setup(props) {
-          return function () {
-            return {
-              type: "div",
-              children: "错误: " + props.error,
-            };
-          };
-        },
-      },
-      delay: 300,
-      loadingComponent: {
-        name: "loadingComponent",
-        setup(props) {
-          return function () {
-            return {
-              type: "div",
-              children: "loading... ",
-            };
-          };
-        },
-      },
-      onError(retry, fail, retries) {
-        // 重试次数小于5次就不断重试 否则错误处理
-        if (retries < 5) {
-          console.log("重试次数: " + retries);
-          retry();
-        } else {
-          console.log(`重试第${retries}次按照错误处理`)
-          fail();
-        }
-      },
-    });
+    funcComponent.props = {
+      title: String,
+    };
+    const count = ref(1);
     effect(
       () => {
         const vnode = {
           type: "div",
-          key: "例子",
+          props: {
+            onClick() {
+              count.value++;
+            },
+          },
           children: [
             {
-              type: "button",
-              key: "按钮",
+              type: funcComponent,
+              key: count.value,
               props: {
-                onClick() {
-                  count.value++;
-                },
-              },
-              children: "点击修改标题",
-            },
-            {
-              type: component,
-              key: "异步组件例子" + count.value, // 这里采用不同key是为了更新时候重新卸载
-              props: {
-                class: "z-red",
                 title: "标题" + count.value,
-                onClick(msg) {
-                  alert("子组件emit: " + msg);
-                },
-              },
-              children: {
-                default() {
-                  return {
-                    type: "p",
-                    key: "slot",
-                    children: "这是一个slot",
-                  };
-                },
+                class: "z-red",
               },
             },
           ],
         };
+
         renderer.render(vnode, document.body);
       },
       {
