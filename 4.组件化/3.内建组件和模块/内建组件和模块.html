@@ -4,9 +4,88 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>内建组件和模块</title>
+
+    <style>
+      #test {
+        margin-top: 100px;
+      }
+      .box {
+        width: 100px;
+        height: 100px;
+        background-color: red;
+      }
+      .box.z-green {
+        background-color: green;
+      }
+      /* 动画相关类  */
+      .enter-from,
+      .leave-to {
+        transform: translateX(200px);
+      }
+      .enter-active,
+      .leave-active {
+        transition: all 1s ease-in-out;
+      }
+      .enter-to,
+      .leave-from {
+        transform: translateX(0px);
+      }
+    </style>
   </head>
   <body>
+    <div id="app1"></div>
+    <div id="app2"></div>
 
+    <div id="test">
+      <script type="text/javascript">
+        const container = document.querySelector("#test");
+        const el = document.createElement("div");
+        el.classList.add("box");
+
+        // 进入动画
+        {
+          // beforeEnter阶段
+          el.classList.add("enter-from");
+          el.classList.add("enter-active");
+
+          container.appendChild(el);
+
+          // enter阶段
+          requestAnimationFrame(() => {
+            el.classList.remove("enter-from"); // 移除 enter-from
+            el.classList.add("enter-to"); // 添加 enter-to
+            // 动画执行完移除 to和active类
+            el.addEventListener("transitionend", () => {
+              el.classList.remove("enter-to");
+              el.classList.remove("enter-active");
+            });
+          });
+        }
+
+        // 删除动画
+        {
+          el.addEventListener("click", () => {
+            const performRemove = () => el.parentNode.removeChild(el);
+
+            // beforeLeave
+            el.classList.add("leave-from");
+            el.classList.add("leave-active");
+
+            // leave阶段
+            requestAnimationFrame(() => {
+              el.classList.remove("leave-from"); // 移除 enter-from
+              el.classList.add("leave-to"); // 添加 enter-to
+              // 动画执行完移除 to和active类
+              el.addEventListener("transitionend", () => {
+                el.classList.remove("leave-to");
+                el.classList.remove("leave-active");
+                performRemove(); // 移除元素
+              });
+            });
+          });
+        }
+      </script>
+    </div>
 
     <script type="text/javascript">
       try {
@@ -28,7 +107,7 @@
         "3.Transition组件的实现原理.js",
         "4.总结.js",
       ];
- 
+
       function loadJS(index) {
         return new Promise((resolve, reject) => {
           const path = typeof index === "number" ? `./${js[index]}` : index;
@@ -46,7 +125,7 @@
         });
       }
 
-      loadJS(1);
+      loadJS(3);
     </script>
   </body>
 </html>
