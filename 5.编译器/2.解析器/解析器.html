@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>解析器</title>
+  </head>
+  <body>
+
+
+    <script type="text/javascript">
+      try {
+        1. 文本模式及其对解析器的影响
+        2. 递归下降算法构造模式AST
+        3. 状态机的开启与停止
+        4. 解析标签节点
+        5. 解析属性
+        6. 解析文本与编码HTML实体
+        7. 解析插值与注释
+        8. 总结
+      } catch {}
+    </script>
+
+    <script type="text/javascript">
+      const js = [
+        "",
+        "1.文本模式及其对解析器的影响.js",
+        "2.递归下降算法构造模式AST.js",
+        "3.状态机的开启与停止.js",
+        "4.解析标签节点.js",
+        "5.解析属性.js",
+        "6.解析文本与编码HTML实体.js",
+        "7.解析插值与注释.js",
+        "8.总结.js",
+      ];
+ 
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(1);
+    </script>
+  </body>
+</html>

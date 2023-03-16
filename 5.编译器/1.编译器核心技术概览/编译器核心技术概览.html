@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>编译器核心技术概览</title>
+  </head>
+  <body>
+
+    <img width="100%" src="./parser.png" alt="">
+
+    <script type="text/javascript">
+      try {
+        1. 模板DSL(特定领域语言)的编译器
+          1. 编译器将源代码转换成目标代码的过程叫编译
+            "源代码" → 词法分析 → 语法分析 → 语义分析 → 中间代码生成 → 优化 → 目标代码生成 → "目标代码"
+                    |------------------------------|-----编译中端-----|---------------|
+                    |-----------编译前端------------|-----------编译后端---------------|
+            - 编译前端通常和目标平台无关，仅负责分析源代码
+            - 编译后端通常和目标平台有关，包含中端，但中端不一定存在
+          2. vue模板编译器的目标代码是渲染函数
+            1. 例子
+              '<div><h1 :id="id">hello</h1></div>' 
+              →
+              `function render () { return h("div", [h("h1", { id: id }, "hello")]) }`
+            2. 过程
+              "模板" → parser(str) → 模板AST → transform(ast) → Javascript_AST → generate(JS_AST) → "渲染函数"
+                    |tokenize-parse|
+        2. parser(解析器)的实现原理与状态机
+          1. 解析器就是逐个读取字符 并根据一定的规则将字符串切割成一个个的token 这里的token就是词法记号
+          2. 实现方法就是有限状态自动机
+            - html模板 有限状态自动机
+              初始状态 标签开始状态 开始标签名称状态(token) 文本状态(token) 标签结束状态 结束标签名称状态(token)
+            - 正则表达式本质就是有限自动机
+        3. 构造AST
+          - 定义一个栈，栈底为Root 循环tokens 
+            - 如果是开始标签则生成节点对象 添加进栈 并且将当前节点对象添加到栈顶节点的children中
+            - 如果是文本则生成文本节点 添加到栈顶节点的children中
+            - 如果是结束节点则弹出栈
+        4. AST的转换与插件化架构
+          - 遍历ast通过转换器进行修改
+        5. 将模板AST转为Javascript_AST
+        6. 代码生成
+        7. 总结
+      } catch {}
+    </script>
+
+    <script type="text/javascript">
+      const js = [
+        "",
+        "",
+        "2.的实现原理与状态机.js",
+        "3.构造AST.js",
+        "4.AST的转换与插件化架构.js",
+        "5.将模板AST转为Javascript_AST.js",
+        "6.代码生成.js",
+      ];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(6);
+    </script>
+  </body>
+</html>
