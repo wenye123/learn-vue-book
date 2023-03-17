@@ -7,15 +7,22 @@
   </head>
   <body>
 
-
     <script type="text/javascript">
       try {
         1. 文本模式及其对解析器的影响
+          1. 文本模式就是解析器在工作中进入的一种特殊状态 一般在遇到特定的标签时候触发
+          2. 模式     是否解析标签      是否支持HTML实体(遇到&切换到字符引用状态)      其他
+            DATA      是               是                                          默认模式
+            RCDATA    否               是                                          遇到title，textarea标签
+            RAWTEXT   否               否                                          遇到style,xpm,iframe,noembed,noframes,noscript等标签
+            CDATA     否               否                                          遇到 <![CDATA[ 字符串
+          3. vue模板在遇到script标签会切换到RAWTEXT模式
         2. 递归下降算法构造模式AST
         3. 状态机的开启与停止
         4. 解析标签节点
         5. 解析属性
         6. 解析文本与编码HTML实体
+          - HTML实体(& &#开头的特殊字符)不想搞
         7. 解析插值与注释
         8. 总结
       } catch {}
@@ -24,14 +31,7 @@
     <script type="text/javascript">
       const js = [
         "",
-        "1.文本模式及其对解析器的影响.js",
-        "2.递归下降算法构造模式AST.js",
-        "3.状态机的开启与停止.js",
-        "4.解析标签节点.js",
-        "5.解析属性.js",
-        "6.解析文本与编码HTML实体.js",
-        "7.解析插值与注释.js",
-        "8.总结.js",
+        "解析器.js",
       ];
  
       function loadJS(index) {
