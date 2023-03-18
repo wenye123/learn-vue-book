@@ -144,27 +144,54 @@
       }
     }
 
+    // 更新块节点的子节点
+    function _patchBlockChildren(oldNode, newNode) {
+      // 只更新动态节点
+      for (let i = 0; i < newNode.dynamicChildren.length; i++) {
+        _patchElementNode(
+          oldNode.dynamicChildren[i],
+          newNode.dynamicChildren[i]
+        );
+      }
+    }
+
     // 更新元素节点
     function _patchElementNode(oldNode, newNode) {
       // 将旧节点的el属性赋值给新节点
       const el = (newNode.el = oldNode.el);
 
-      // 更新props 更新新属性存在且不相同的 删除不存在的
-      const oldProps = oldNode.props;
-      const newProps = newNode.props;
-      for (let key in newProps) {
-        if (oldProps[key] !== newProps[key]) {
-          patchProps(el, key, oldProps[key], newProps[key]);
+      // 存在更新标记则靶向更新
+      if (newNode.patchFlags) {
+        if (newNode.patchFlags.includes(1)) {
+          // 只更新文本
+          // 什么也不用做
+        } else if (newNode.patchFlags.includes(1)) {
+          // 更新class
         }
-      }
-      for (let key in oldProps) {
-        if (!(key in newProps)) {
-          patchProps(el, key, oldProps[key], null);
+        // 其他标记情况
+      } else {
+        // 全量更新
+        const oldProps = oldNode.props;
+        const newProps = newNode.props;
+        for (let key in newProps) {
+          if (oldProps[key] !== newProps[key]) {
+            patchProps(el, key, oldProps[key], newProps[key]);
+          }
+        }
+        for (let key in oldProps) {
+          if (!(key in newProps)) {
+            patchProps(el, key, oldProps[key], null);
+          }
         }
       }
 
-      // 更新children
-      _patchChildren(oldNode, newNode, el);
+      // 如果存在动态子节点则直接更新动态子节点
+      if (newNode.dynamicChildren) {
+        _patchBlockChildren(oldNode, newNode);
+      } else {
+        // 更新children
+        _patchChildren(oldNode, newNode, el);
+      }
     }
 
     // 新增和更新都算patch oldNode不存在就是新增
@@ -332,6 +359,50 @@
     },
   });
 
+  // 动态子节点栈
+  const dynamicChildrenStack = [];
+  // 当前动态子节点
+  let currDynamicChildren = null;
+  // 打开block节点
+  function openBlock() {
+    // 设置当前动态子节点为空数组 推进栈中
+    dynamicChildrenStack.push((currDynamicChildren = []));
+  }
+  // 关闭block节点
+  function closeBlock() {
+    // 弹出栈顶 作为当前动态子节点
+    currDynamicChildren = dynamicChildrenStack.pop();
+  }
+
+  // 创建节点
+  function h(type, props, children, patchFlags) {
+    const key = props && props.key;
+    props && delete props.key;
+
+    const vnode = {
+      type,
+      key,
+      props,
+      children,
+      patchFlags,
+    };
+
+    // 如果存在标记则是动态节点 添加到当前动态子节点数组中
+    if (patchFlags && currDynamicChildren) {
+      currDynamicChildren.push(vnode);
+    }
+
+    return vnode;
+  }
+  // 创建block节点
+  function hBlock(type, props, children) {
+    const block = h(type, props, children);
+    block.dynamicChildren = currDynamicChildren;
+    // 关闭block
+    closeBlock();
+    return block;
+  }
+
   /******************例子********************/
   {
     // 使用队列控制执行次数
@@ -347,55 +418,49 @@
         isFlushing = false;
       });
     }
-    const data = reactive({
-      list: [],
-    });
-    let count = 0;
+
+    let count = ref(0);
+
+    // 模拟模板渲染函数
+    function comRender() {
+      // 打开block
+      openBlock();
+      // 根节点用hBlock
+      return hBlock("div", { key: "根节点" }, [
+        h(
+          "p",
+          {
+            key: "静态节点",
+            onClick() {
+              count.value++;
+            },
+          },
+          "静态节点，点击count++"
+        ),
+        h(
+          "p",
+          {
+            key: "动态节点",
+          },
+          "动态节点: " + count.value,
+          [1]
+        ),
+        hBlock("div", { key: "子block节点" }, [
+          h(
+            "p",
+            {
+              key: "子block节点的动态节点",
+            },
+            "子block节点的动态节点: " + count.value,
+            [1]
+          ),
+        ]),
+      ]);
+    }
     effect(
       () => {
-        const vnode = {
-          type: "div",
-          children: [
-            {
-              type: "p",
-              key: "add",
-              props: {
-                onClick() {
-                  data.list.push("item" + count++);
-                },
-              },
-              children: "增加: " + data.list.length,
-            },
-            {
-              type: "p",
-              key: "reduce",
-              props: {
-                onClick() {
-                  if (data.list.length > 0) {
-                    data.list.length = data.list.length - 1;
-                  }
-                },
-              },
-              children: "减少: " + data.list.length,
-            },
-            {
-              type: "ul",
-              key: "ul",
-              children: data.list.map((v, i) => {
-                return {
-                  type: "li",
-                  key: v,
-                  props: {
-                    onClick() {
-                      data.list.splice(i, 1);
-                    },
-                  },
-                  children: v,
-                };
-              }),
-            },
-          ],
-        };
+        const vnode = comRender();
+        console.log("vnode", vnode);
         renderer.render(vnode, document.getElementById("app1"));
       },
       {
