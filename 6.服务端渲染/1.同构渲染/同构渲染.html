@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>同构渲染</title>
+  </head>
+  <body>
+
+    <div id="app1"></div>
+    <div id="app2"></div>
+    <script type="text/javascript">
+      try {
+        1. CSR SSR以及同构渲染
+          1. 同构渲染就是首次采用服务端渲染SSR 然后js加载完vue重新获得控制权 变成CSR客户端渲染
+          2. 因为像CSR一样需要等待js加载完成 因此无法提升TTI(可交互时间)
+        2. 将虚拟DOM渲染为HTML字符串
+          1. 渲染HTML字符串本质就是字符串拼接，但需要注意以下几点
+            1. 考虑节点是否自闭合标签
+            2. 属性名合法 是否单属性名 属性值转义
+              1. key,ref,事件属性用于组件运行相关逻辑 渲染成字符串则不需要
+            3. 子节点有fragment 组件 函数式组件 文本等多种情况
+            4. 标签子节点也需要html转义
+              &: &amp;
+              <: &lt;
+              >: &gt;
+              如果是属性值还需要转义 
+              `"`: &quot;
+              `'`:  &#39;
+        3. 将组件渲染成HTML字符串
+          1. 就是执行组件选项的render函数获取虚拟DOM 然后再用渲染标签的方法渲染即可 整体和渲染组件的方法一样
+          2. 区别
+            1. data无需响应式 props也无须浅响应
+            2. 无需render effect
+              因此mounted update等钩子不会执行
+        4. 客户端激活的原理
+          1. 组件代码在客户端运行 不需要重新创建DOM 只需要
+            1. 页面DOM元素和虚拟节点之间建立联系
+            2. 页面的DOM元素绑定事件
+        5. 编写同构的代码
+        6. 总结
+      } catch {}
+    </script>
+
+    <script src="../../reactivity.global.js"></script>
+    <script type="text/javascript">
+      const js = ["", "同构渲染.js"];
+
+      function loadJS(index) {
+        return new Promise((resolve, reject) => {
+          const path = typeof index === "number" ? `./${js[index]}` : index;
+          const script = document.createElement("script");
+          script.type = "text/javascript";
+          script.onload = () => {
+            console.info(`------加载${path}-------`);
+            resolve();
+          };
+          script.onerror = (e) => {
+            reject(e);
+          };
+          script.src = path;
+          document.getElementsByTagName("head")[0].appendChild(script);
+        });
+      }
+
+      loadJS(1);
+    </script>
+  </body>
+</html>
