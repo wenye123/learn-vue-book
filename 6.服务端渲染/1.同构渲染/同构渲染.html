@@ -7,8 +7,14 @@
   </head>
   <body>
 
+    <p>组件渲染: </p>
     <div id="app1"></div>
+    <hr>
+
+    <p>同构渲染: </p>
     <div id="app2"></div>
+    <hr>
+
     <script type="text/javascript">
       try {
         1. CSR SSR以及同构渲染
@@ -38,13 +44,26 @@
             1. 页面DOM元素和虚拟节点之间建立联系
             2. 页面的DOM元素绑定事件
         5. 编写同构的代码
+          1. 组件的生命周期
+            1. mounted update等钩子在服务端渲染中不会执行 
+              1. created中进行定时器 unMount中卸载定时器 属于服务端客户端混用 不会成功
+                1. 可以将定时器移到mounted钩子中 完全在客户端中执行
+                2. 使用环境变量 import.meta.env.SSR  
+            2. 跨平台Api
+              环境变量
+            3. 只在某一端引入模块
+              环境变量
+            4. 避免交叉请求引起的状态污染
+              1. 比如一个模块在头部定义一个count组件中引入 因为是服务端渲染 所以这个count属于共享数据
+              2. <ClientOnly> 组件
+                定义一个flag为false 在mounted中设置为true 渲染只有在true在渲染slot否则渲染空
         6. 总结
       } catch {}
     </script>
 
     <script src="../../reactivity.global.js"></script>
     <script type="text/javascript">
-      const js = ["", "同构渲染.js"];
+      const js = ["", "1.渲染字符串.js", "2.客户端激活.js"];
 
       function loadJS(index) {
         return new Promise((resolve, reject) => {
@@ -63,7 +82,7 @@
         });
       }
 
-      loadJS(1);
+      loadJS(2);
     </script>
   </body>
 </html>
